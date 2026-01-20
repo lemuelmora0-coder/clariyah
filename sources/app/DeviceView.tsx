@@ -4,7 +4,17 @@ import { rotateImage } from '../modules/imaging';
 import { toBase64Image } from '../utils/base64';
 import { Agent } from '../agent/Agent';
 import { InvalidateSync } from '../utils/invalidateSync';
-import { textToSpeech } from '../modules/openai';
+
+// Add this helper function at the top of DeviceView.tsx
+const textToSpeech = (text: string) => {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        // utterance.rate = 1.0; // Optional: Adjust speed
+        window.speechSynthesis.speak(utterance);
+    } else {
+        console.error("Speech synthesis not supported in this browser.");
+    }
+};
 
 function usePhotos(device: BluetoothRemoteGATTServer) {
 

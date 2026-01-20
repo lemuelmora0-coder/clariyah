@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { AsyncLock } from "../utils/lock";
 import { imageDescription, llamaFind } from "./imageDescription";
-import { startAudio } from '../modules/openai';
 
 type AgentState = {
     lastDescription?: string;
@@ -18,20 +17,16 @@ export class Agent {
 
     async addPhoto(photos: Uint8Array[]) {
         await this.#lock.inLock(async () => {
-
-            // Append photos
             let lastDescription: string | null = null;
             for (let p of photos) {
                 console.log('Processing photo', p.length);
+                // This uses Ollama/Moondream as defined in imageDescription.ts
                 let description = await imageDescription(p);
                 console.log('Description', description);
                 this.#photos.push({ photo: p, description });
                 lastDescription = description;
             }
 
-            // TODO: Update summaries
-
-            // Update UI
             if (lastDescription) {
                 this.#state.lastDescription = lastDescription;
                 this.#notify();
@@ -40,11 +35,8 @@ export class Agent {
     }
 
     async answer(question: string) {
-        try {
-            startAudio()
-        } catch(error) {
-            console.log("Failed to start audio")
-        }
+        // FIX: Removed the startAudio() call which caused the crash
+        
         if (this.#state.loading) {
             return;
         }
@@ -54,14 +46,21 @@ export class Agent {
             let combined = '';
             let i = 0;
             for (let p of this.#photos) {
-                combined + '\n\nImage #' + i + '\n\n';
+                // FIX: Added '+=' so the text actually saves
+                combined += '\n\nImage #' + i + '\n\n'; 
                 combined += p.description;
                 i++;
             }
+            // This uses Groq for fast answering based on what Moondream saw
             let answer = await llamaFind(question, combined);
             this.#state.answer = answer;
             this.#state.loading = false;
             this.#notify();
+
+            // Optional: Use browser built-in speech since OpenAI is gone
+            if (answer) {
+                window.speechSynthesis.speak(new SpeechSynthesisUtterance(answer));
+            }
         });
     }
 
@@ -71,7 +70,6 @@ export class Agent {
             l();
         }
     }
-
 
     use() {
         const [state, setState] = React.useState(this.#stateCopy);

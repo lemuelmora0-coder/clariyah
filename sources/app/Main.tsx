@@ -4,7 +4,7 @@ import { RoundButton } from './components/RoundButton';
 import { Theme } from './components/theme';
 import { useDevice } from '../modules/useDevice';
 import { DeviceView } from './DeviceView';
-import { startAudio } from '../modules/openai';
+
 
 export const Main = React.memo(() => {
 
