@@ -9,10 +9,10 @@ const headers = {
 
 export async function groqRequest(systemPrompt: string, userPrompt: string) {
     try {
-        console.info("Calling Groq llama-3.3-70b-versatile");
+        console.info("Calling Groq llama-3.1-8b-instant");
         const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
             // Using the newer, more stable model ID
-            model: "llama-3.3-70b-versatile",
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt },
@@ -25,3 +25,4 @@ export async function groqRequest(systemPrompt: string, userPrompt: string) {
         return "Sorry, I couldn't process your question.";
     }
 }
+

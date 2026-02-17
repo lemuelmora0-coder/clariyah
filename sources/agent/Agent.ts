@@ -1,11 +1,43 @@
+import * as Speech from 'expo-speech';
 import * as React from 'react';
 import { AsyncLock } from "../utils/lock";
-import { imageDescription, llamaFind } from "./imageDescription";
+import { keys } from "../keys"; // Make sure we have access to API keys
+import { processImageWithGroq } from "../utils/groq"; // Import the function you created in Step 2
 
 type AgentState = {
     lastDescription?: string;
     answer?: string;
     loading: boolean;
+}
+
+// HELPER: Convert raw camera data to Base64 for Groq
+function uint8ArrayToBase64(uint8Array: Uint8Array): string {
+    let binary = '';
+    const len = uint8Array.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+    }
+    return window.btoa(binary);
+}
+
+// HELPER: Text-Only Groq call (replaces llamaFind)
+async function askGroqText(question: string, context: string) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${keys.groq}`,
+        },
+        body: JSON.stringify({
+            model: "llama-3.1-8b-instant", // Fast text model
+            messages: [
+                { role: "system", content: "You are a helpful AI assistant. Use the provided image descriptions to answer the user's question." },
+                { role: "user", content: `Context:\n${context}\n\nQuestion: ${question}` }
+            ],
+        }),
+    });
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "I couldn't generate an answer.";
 }
 
 export class Agent {
@@ -20,10 +52,22 @@ export class Agent {
             let lastDescription: string | null = null;
             for (let p of photos) {
                 console.log('Processing photo', p.length);
-                // This uses Ollama/Moondream as defined in imageDescription.ts
-                let description = await imageDescription(p);
+                
+                // 1. Convert Raw Data to Base64
+                const base64Image = uint8ArrayToBase64(p);
+
+                // 2. Send to Groq Vision (Cloud) instead of Moondream (Localhost)
+                console.log("Sending to Groq Vision...");
+                let description = await processImageWithGroq(
+                    base64Image, 
+                    "Describe this image in detail.", 
+                    keys.groq
+                );
+                
                 console.log('Description', description);
-                this.#photos.push({ photo: p, description });
+                
+                // Store the result
+                this.#photos.push({ photo: p, description: description || "Error describing image" });
                 lastDescription = description;
             }
 
@@ -35,31 +79,38 @@ export class Agent {
     }
 
     async answer(question: string) {
-        // FIX: Removed the startAudio() call which caused the crash
+        if (this.#state.loading) return;
         
-        if (this.#state.loading) {
-            return;
-        }
         this.#state.loading = true;
         this.#notify();
+
         await this.#lock.inLock(async () => {
+            // 1. Combine all descriptions
             let combined = '';
             let i = 0;
             for (let p of this.#photos) {
-                // FIX: Added '+=' so the text actually saves
-                combined += '\n\nImage #' + i + '\n\n'; 
-                combined += p.description;
+                combined += `\n\n[Image #${i}]: ${p.description}`; 
                 i++;
             }
-            // This uses Groq for fast answering based on what Moondream saw
-            let answer = await llamaFind(question, combined);
+
+            // 2. Ask Groq
+            console.log("Asking Groq Text...");
+            let answer = await askGroqText(question, combined);
+            
             this.#state.answer = answer;
             this.#state.loading = false;
             this.#notify();
 
-            // Optional: Use browser built-in speech since OpenAI is gone
+            // 3. SPEAK THE ANSWER (Accessibility)
             if (answer) {
-                window.speechSynthesis.speak(new SpeechSynthesisUtterance(answer));
+                // Stop any previous speech
+                Speech.stop();
+                // Speak slowly and clearly
+                Speech.speak(answer, { 
+                    language: 'en',
+                    pitch: 1.0,
+                    rate: 0.9 // Slightly slower for clarity
+                });
             }
         });
     }

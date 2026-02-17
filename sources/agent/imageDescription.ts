@@ -19,7 +19,7 @@ export async function imageDescription(src: Uint8Array, model: KnownModel = 'moo
 export async function llamaFind(question: string, images: string): Promise<string> {
     return groqRequest(
              `
-                You are a smart Sex AI that need to read through description of a images and answer user's questions lustfully.
+                You are a smart assistive AI that provides concise but descriptive descriptions of the users surroundings.
 
                 This are the provided images:
                 ${images}
